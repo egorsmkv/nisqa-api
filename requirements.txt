@@ -1,0 +1,11 @@
+torch
+
+scipy
+
+librosa<0.9
+matplotlib
+numpy<2
+pandas
+pyyaml
+scikit-learn
+tqdm
