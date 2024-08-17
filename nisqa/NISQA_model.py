@@ -1,23 +1,22 @@
-# -*- coding: utf-8 -*-
 """
 @author: Gabriel Mittag, TU-Berlin
 """
 
 import time
 import os
-from glob import glob
 import datetime
+from glob import glob
 from pathlib import Path
 
-import NISQA_lib as NL
+import nisqa.NISQA_lib as NL
 
+import yaml
+import torch
+import torch.nn as nn
 import numpy as np
 import pandas as pd
 
 from tqdm import tqdm
-import yaml
-import torch
-import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
 

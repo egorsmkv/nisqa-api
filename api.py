@@ -1,8 +1,10 @@
 import os
 import logging
+import tempfile
+
+import uvicorn
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from nisqa.NISQA_model import nisqaModel
-import tempfile
 
 app = FastAPI()
 
@@ -78,6 +80,4 @@ async def predict(
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(app, host="127.0.0.1", port=8356)

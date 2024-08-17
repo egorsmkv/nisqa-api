@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 @author: Gabriel Mittag, TU-Berlin
 """
@@ -29,7 +28,6 @@ from torch.utils.data import Dataset
 pd.options.mode.chained_assignment = None
 
 
-# %% Models
 class NISQA(nn.Module):
     """
     NISQA: The main speech quality model without speech quality dimension
@@ -413,7 +411,6 @@ class NISQA_DE(nn.Module):
         return x
 
 
-# %% Framewise
 class Framewise(nn.Module):
     """
     Framewise: The main framewise module. It loads either a CNN or feed-forward
@@ -822,7 +819,6 @@ class StandardCNN(nn.Module):
         return x
 
 
-# %% Time Dependency
 class TimeDependency(nn.Module):
     """
     TimeDependency: The main time-dependency module. It loads either an LSTM
@@ -1058,7 +1054,6 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-# %% Pooling
 class Pooling(nn.Module):
     """
     Pooling: Main Pooling module. It can load either attention-pooling, average
@@ -1244,7 +1239,6 @@ class PoolMax(torch.nn.Module):
         return x
 
 
-# %% Alignment
 class Alignment(torch.nn.Module):
     """
     Alignment: Alignment module for the double-ended NISQA_DE model. It
@@ -1459,7 +1453,6 @@ class Fusion(torch.nn.Module):
         return x
 
 
-# %% Evaluation
 def predict_mos(model, ds, bs, dev, num_workers=0):
     """
     predict_mos: predicts MOS of the given dataset with given model. Used for
@@ -1933,7 +1926,6 @@ def eval_results(
     return db_results_df, overall_results
 
 
-# %% Loss
 class biasLoss(object):
     """
     Bias loss class.
@@ -2033,7 +2025,6 @@ class biasLoss(object):
         return torch.mean(nan_err**2)
 
 
-# %% Early stopping
 class earlyStopper(object):
     """
     Early stopping class.
@@ -2147,7 +2138,6 @@ def get_lr(optimizer):
         return param_group["lr"]
 
 
-# %% Dataset
 class SpeechQualityDataset(Dataset):
     """
     Dataset for Speech Quality Model.
@@ -2347,7 +2337,6 @@ class SpeechQualityDataset(Dataset):
         return len(self.df)
 
 
-# %% Spectrograms
 def segment_specs(file_path, x, seg_length, seg_hop=1, max_length=None):
     """
     Segment a spectrogram into "seg_length" wide spectrogram segments.
