@@ -34,16 +34,16 @@ class NisqaModel:
         return scores
 
     def _load_datasets(self):
-        data_dir = os.path.dirname(self.args["deg"])
-        file_name = os.path.basename(self.args["deg"])
-        df_val = pd.DataFrame([file_name], columns=["deg"])
+        data_dir = os.path.dirname(self.args["filename"])
+        file_name = os.path.basename(self.args["filename"])
+        df_val = pd.DataFrame([file_name], columns=["filename"])
 
         # creating Datasets
         self.ds_val = SpeechQualityDataset(
             df_val,
             df_con=None,
             data_dir=data_dir,
-            filename_column="deg",
+            filename_column="filename",
             mos_column="predict_only",
             seg_length=self.args["ms_seg_length"],
             max_length=self.args["ms_max_segments"],

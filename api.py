@@ -22,7 +22,7 @@ async def predict(
 
     args = {
         "pretrained_model": pretrained_model,
-        "deg": temp_path,
+        "filename": temp_path,
         "ms_channel": None,
         "ms_sr": sr,
         "tr_bs_val": 1,
