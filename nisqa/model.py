@@ -4,10 +4,10 @@
 
 import os
 
-import nisqa.lib as NL
-
 import torch
 import pandas as pd
+
+from nisqa.lib import predict_dim, SpeechQualityDataset, NISQA_DIM
 
 
 class NisqaModel:
@@ -23,7 +23,7 @@ class NisqaModel:
         self._load_datasets()
 
     def predict(self):
-        _, _, scores = NL.predict_dim(
+        _, _, scores = predict_dim(
             self.model,
             self.ds_val,
             self.args["tr_bs_val"],
@@ -39,7 +39,7 @@ class NisqaModel:
         df_val = pd.DataFrame([file_name], columns=["deg"])
 
         # creating Datasets
-        self.ds_val = NL.SpeechQualityDataset(
+        self.ds_val = SpeechQualityDataset(
             df_val,
             df_con=None,
             data_dir=data_dir,
@@ -140,7 +140,7 @@ class NisqaModel:
                 }
             )
 
-        self.model = NL.NISQA_DIM(**self.model_args)
+        self.model = NISQA_DIM(**self.model_args)
 
         # Load weights if pretrained model is used
         if self.args["pretrained_model"]:
