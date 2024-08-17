@@ -3,15 +3,9 @@ torch
 scipy
 
 librosa
-matplotlib
 numpy<2
 pandas
-pyyaml
-scikit-learn
-tqdm
 
 fastapi
 uvicorn
 python-multipart
-
-requests

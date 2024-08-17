@@ -3,27 +3,22 @@
 """
 
 import os
-import multiprocessing
 import copy
 import math
+import multiprocessing
 
 import librosa as lb
 import numpy as np
 import pandas as pd
 
-import matplotlib.pyplot as plt
-
-from tqdm import tqdm
 from scipy.stats import pearsonr
 from scipy.optimize import minimize
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_packed_sequence
-from torch.nn.utils.rnn import pack_padded_sequence
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
+from torch.utils.data import Dataset, DataLoader
 
 pd.options.mode.chained_assignment = None
 
@@ -1453,38 +1448,12 @@ class Fusion(torch.nn.Module):
         return x
 
 
-def predict_mos(model, ds, bs, dev, num_workers=0):
-    """
-    predict_mos: predicts MOS of the given dataset with given model. Used for
-    NISQA and NISQA_DE model.
-    """
-    dl = DataLoader(
-        ds,
-        batch_size=bs,
-        shuffle=False,
-        drop_last=False,
-        pin_memory=False,
-        num_workers=num_workers,
-    )
-    model.to(dev)
-    model.eval()
-    with torch.no_grad():
-        y_hat_list = [
-            [model(xb.to(dev), n_wins.to(dev)).cpu().numpy(), yb.cpu().numpy()]
-            for xb, yb, (idx, n_wins) in dl
-        ]
-    yy = np.concatenate(y_hat_list, axis=1)
-    y_hat = yy[0, :, 0].reshape(-1, 1)
-    y = yy[1, :, 0].reshape(-1, 1)
-    ds.df["mos_pred"] = y_hat.astype(dtype=float)
-    return y_hat, y
-
-
 def predict_dim(model, ds, bs, dev, num_workers=0):
     """
     predict_dim: predicts MOS and dimensions of the given dataset with given
     model. Used for NISQA_DIM model.
     """
+
     dl = DataLoader(
         ds,
         batch_size=bs,
@@ -1493,9 +1462,8 @@ def predict_dim(model, ds, bs, dev, num_workers=0):
         pin_memory=False,
         num_workers=num_workers,
     )
-    model.to(dev)
-    model.eval()
-    with torch.no_grad():
+
+    with torch.inference_mode():
         y_hat_list = [
             [model(xb.to(dev), n_wins.to(dev)).cpu().numpy(), yb.cpu().numpy()]
             for xb, yb, (idx, n_wins) in dl
@@ -1505,13 +1473,15 @@ def predict_dim(model, ds, bs, dev, num_workers=0):
     y_hat = yy[0, :, :]
     y = yy[1, :, :]
 
-    ds.df["mos_pred"] = y_hat[:, 0].reshape(-1, 1)
-    ds.df["noi_pred"] = y_hat[:, 1].reshape(-1, 1)
-    ds.df["dis_pred"] = y_hat[:, 2].reshape(-1, 1)
-    ds.df["col_pred"] = y_hat[:, 3].reshape(-1, 1)
-    ds.df["loud_pred"] = y_hat[:, 4].reshape(-1, 1)
+    scores = {}
 
-    return y_hat, y
+    scores["mos_pred"] = y_hat[:, 0].reshape(-1, 1)[0, 0]
+    scores["noi_pred"] = y_hat[:, 1].reshape(-1, 1)[0, 0]
+    scores["dis_pred"] = y_hat[:, 2].reshape(-1, 1)[0, 0]
+    scores["col_pred"] = y_hat[:, 3].reshape(-1, 1)[0, 0]
+    scores["loud_pred"] = y_hat[:, 4].reshape(-1, 1)[0, 0]
+
+    return y_hat, y, scores
 
 
 def is_const(x):
@@ -1834,46 +1804,6 @@ def eval_results(
 
         # ---------------------------------------------------------------------
         db_results_df.append({"db": db_name, **r})
-        # Plot  ------------------------------------------------------------------
-        if do_plot and (not np.isnan(y).any()):
-            xx = np.arange(0, 6, 0.01)
-            yy = calc_mapped(xx, b)
-
-            plt.figure(figsize=(3.0, 3.0), dpi=300)
-            plt.clf()
-            plt.plot(y_hat, y, "o", label="Original data", markersize=2)
-            plt.plot([0, 5], [0, 5], "gray")
-            plt.plot(xx, yy, "r", label="Fitted line")
-            plt.axis([1, 5, 1, 5])
-            plt.gca().set_aspect("equal", adjustable="box")
-            plt.grid(True)
-            plt.xticks(np.arange(1, 6))
-            plt.yticks(np.arange(1, 6))
-            plt.title(db_name + " per file")
-            plt.ylabel("Subjective " + target_mos.upper())
-            plt.xlabel("Predicted " + target_mos.upper())
-            # plt.savefig('corr_diagram_fr_' + db_name + '.pdf', dpi=300, bbox_inches="tight")
-            plt.show()
-
-            if (dcon_db is not None) and ("con" in df_db):
-                xx = np.arange(0, 6, 0.01)
-                yy = calc_mapped(xx, b_con)
-
-                plt.figure(figsize=(3.0, 3.0), dpi=300)
-                plt.clf()
-                plt.plot(y_con_hat, y_con, "o", label="Original data", markersize=3)
-                plt.plot([0, 5], [0, 5], "gray")
-                plt.plot(xx, yy, "r", label="Fitted line")
-                plt.axis([1, 5, 1, 5])
-                plt.gca().set_aspect("equal", adjustable="box")
-                plt.grid(True)
-                plt.xticks(np.arange(1, 6))
-                plt.yticks(np.arange(1, 6))
-                plt.title(db_name + " per con")
-                plt.ylabel("Sub " + target_mos.upper())
-                plt.xlabel("Pred " + target_mos.upper())
-                # plt.savefig(db_name + '.pdf', dpi=300, bbox_inches="tight")
-                plt.show()
 
         # Print ------------------------------------------------------------------
         if do_print and (not np.isnan(y).any()):
@@ -2200,7 +2130,7 @@ class SpeechQualityDataset(Dataset):
 
     def _to_memory(self):
         if self.to_memory_workers == 0:
-            self.mem_list = [self._load_spec(idx) for idx in tqdm(range(len(self)))]
+            self.mem_list = [self._load_spec(idx) for idx in range(len(self))]
         else:
             buffer_size = 128
             idx = np.arange(len(self))
@@ -2211,9 +2141,7 @@ class SpeechQualityDataset(Dataset):
             )
             pool = multiprocessing.Pool(processes=self.to_memory_workers)
             mem_list = []
-            for out in tqdm(
-                pool.imap(self._to_memory_multi_helper, idx), total=len(idx)
-            ):
+            for out in pool.imap(self._to_memory_multi_helper, idx):
                 mem_list = mem_list + out
             self.mem_list = mem_list
             pool.terminate()
