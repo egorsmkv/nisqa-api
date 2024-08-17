@@ -1759,7 +1759,7 @@ def eval_results(
 
             r = calc_eval_metrics(y, y_hat, y_hat_map=y_hat_map, d=d)
             r.pop("rmse_star_map")
-        r = {f"{k}_file": v for k, v in r.items()}
+        r = {f"{k}_file": v for k, v in list(r.items())}
 
         # per con ------------------------------------------------------------
         r_con = {
@@ -1799,7 +1799,7 @@ def eval_results(
                     y_con, y_con_hat, y_hat_map=y_con_hat_map, d=d, ci=ci_con
                 )
 
-        r_con = {f"{k}_con": v for k, v in r_con.items()}
+        r_con = {f"{k}_con": v for k, v in list(r_con.items())}
         r = {**r, **r_con}
 
         # ---------------------------------------------------------------------
@@ -1809,20 +1809,24 @@ def eval_results(
         if do_print and (not np.isnan(y).any()):
             if (dcon_db is not None) and ("con" in df_db):
                 print(
-                    "%-30s r_p_file: %0.2f, rmse_map_file: %0.2f, r_p_con: %0.2f, rmse_map_con: %0.2f, rmse_star_map_con: %0.2f"
-                    % (
-                        db_name + ":",
-                        r["r_p_file"],
-                        r["rmse_map_file"],
-                        r["r_p_con"],
-                        r["rmse_map_con"],
-                        r["rmse_star_map_con"],
+                    (
+                        "%-30s r_p_file: %0.2f, rmse_map_file: %0.2f, r_p_con: %0.2f, rmse_map_con: %0.2f, rmse_star_map_con: %0.2f"
+                        % (
+                            db_name + ":",
+                            r["r_p_file"],
+                            r["rmse_map_file"],
+                            r["r_p_con"],
+                            r["rmse_map_con"],
+                            r["rmse_star_map_con"],
+                        )
                     )
                 )
             else:
                 print(
-                    "%-30s r_p_file: %0.2f, rmse_map_file: %0.2f"
-                    % (db_name + ":", r["r_p_file"], r["rmse_map_file"])
+                    (
+                        "%-30s r_p_file: %0.2f, rmse_map_file: %0.2f"
+                        % (db_name + ":", r["r_p_file"], r["rmse_map_file"])
+                    )
                 )
 
     # Save individual database results in DataFrame
@@ -1856,7 +1860,7 @@ def eval_results(
     return db_results_df, overall_results
 
 
-class biasLoss(object):
+class biasLoss:
     """
     Bias loss class.
 
@@ -1918,8 +1922,10 @@ class biasLoss(object):
 
                 if self.do_print:
                     print(
-                        "--> bias update: min_r {:0.2f}, r_p {:0.2f}".format(
-                            r, self.min_r
+                        (
+                            "--> bias update: min_r {:0.2f}, r_p {:0.2f}".format(
+                                r, self.min_r
+                            )
                         )
                     )
                 if r > self.min_r:
@@ -1955,7 +1961,7 @@ class biasLoss(object):
         return torch.mean(nan_err**2)
 
 
-class earlyStopper(object):
+class earlyStopper:
     """
     Early stopping class.
 
@@ -1989,7 +1995,7 @@ class earlyStopper(object):
             return stop_early
 
 
-class earlyStopper_dim(object):
+class earlyStopper_dim:
     """
     Early stopping class for dimension model.
 
