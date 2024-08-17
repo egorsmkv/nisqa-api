@@ -9,17 +9,19 @@ from glob import glob
 import datetime
 from pathlib import Path
 
+import NISQA_lib as NL
+
 import numpy as np
 import pandas as pd
 
-pd.options.mode.chained_assignment = None
 from tqdm import tqdm
 import yaml
 import torch
 import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
-from . import NISQA_lib as NL
+
+pd.options.mode.chained_assignment = None
 
 
 class nisqaModel(object):
@@ -44,13 +46,13 @@ class nisqaModel(object):
             print(yaml.dump(self.args, default_flow_style=None, sort_keys=False))
 
     def train(self):
-        if self.args["dim"] == True:
+        if self.args["dim"]:
             self._train_dim()
         else:
             self._train_mos()
 
     def evaluate(self, mapping="first_order", do_print=True, do_plot=False):
-        if self.args["dim"] == True:
+        if self.args["dim"]:
             self._evaluate_dim(mapping=mapping, do_print=do_print, do_plot=do_plot)
         else:
             self._evaluate_mos(mapping=mapping, do_print=do_print, do_plot=do_plot)
@@ -60,7 +62,7 @@ class nisqaModel(object):
         if self.args["tr_parallel"]:
             self.model = nn.DataParallel(self.model)
 
-        if self.args["dim"] == True:
+        if self.args["dim"]:
             y_val_hat, y_val = NL.predict_dim(
                 self.model,
                 self.ds_val,
@@ -752,7 +754,6 @@ class nisqaModel(object):
                 "r_p_mean_con: {:0.2f}, rmse_mean_con: {:0.2f}".format(
                     r_val_noi["r_p_mean_con"],
                     r_val_noi["rmse_mean_con"],
-                    r_val_noi["rmse_star_map_mean_con"],
                 )
             )
         r_val_noi = {k + "_noi": v for k, v in r_val_noi.items()}
@@ -1193,8 +1194,8 @@ class nisqaModel(object):
         print("Device: {}".format(self.dev))
 
         if "tr_parallel" in self.args:
-            if (self.dev == torch.device("cpu")) and self.args["tr_parallel"] == True:
-                self.args["tr_parallel"] == False
+            if (self.dev == torch.device("cpu")) and self.args["tr_parallel"]:
+                self.args["tr_parallel"] = False
                 print("Using CPU -> tr_parallel set to False")
 
     def _saveResults(

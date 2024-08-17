@@ -12,7 +12,6 @@ import librosa as lb
 import numpy as np
 import pandas as pd
 
-pd.options.mode.chained_assignment = None
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
@@ -26,6 +25,8 @@ from torch.nn.utils.rnn import pad_packed_sequence
 from torch.nn.utils.rnn import pack_padded_sequence
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
+
+pd.options.mode.chained_assignment = None
 
 
 # %% Models
@@ -1613,7 +1614,7 @@ def fit_third_order(y_con, y_con_hat):
     rr = np.roots(p2)
     r = rr[np.imag(rr) == 0]
     monotonic = all(np.logical_or(r > max(y_con_hat), r < min(y_con_hat)))
-    if monotonic == False:
+    if not monotonic:
         print("Not monotonic!!!")
     return b
 
@@ -1718,7 +1719,7 @@ def calc_mapping(
         y = dfile_db[target_mos].to_numpy()
         y_hat = dfile_db[pred].to_numpy()
 
-    if mapping == None:
+    if mapping is None:
         b = np.array([0, 1, 0, 0])
         d_map = 0
     elif mapping == "first_order":
@@ -2413,7 +2414,7 @@ def get_librosa_melspec(
                 y = y[ms_channel, :]
         else:
             y, sr = lb.load(file_path, sr=sr)
-    except:
+    except Exception:
         raise ValueError("Could not load file {}".format(file_path))
 
     hop_length = int(sr * hop_length)
