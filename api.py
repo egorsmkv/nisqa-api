@@ -2,7 +2,7 @@ import os
 import tempfile
 
 import uvicorn
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form
 from nisqa.model import NisqaModel
 
 app = FastAPI()
@@ -25,21 +25,16 @@ async def predict(
         "filename": temp_path,
         "ms_channel": None,
         "ms_sr": sr,
-        "tr_bs_val": 1,
-        "tr_num_workers": 0,
         "run_device": device,
     }
 
-    try:
-        nisqa = NisqaModel(args)
+    nisqa = NisqaModel(args)
 
-        scores = nisqa.predict()
+    scores = nisqa.predict(temp_path)
 
-        return scores
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-    finally:
-        os.unlink(temp_path)
+    os.unlink(temp_path)
+
+    return scores
 
 
 if __name__ == "__main__":

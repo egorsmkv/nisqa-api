@@ -5,50 +5,20 @@
 import os
 
 import torch
-import pandas as pd
 
-from nisqa.lib import predict_dim, SpeechQualityDataset, NISQA_DIM
+from nisqa.lib import predict_dim, SpeechHelper, NisqaDim
 
 
 class NisqaModel:
-    """
-    nisqaModel: Main class that loads the model and the datasets. Contains
-    the training loop, prediction, and evaluation function.
-    """
-
     def __init__(self, args):
         self.args = args
 
-        self._load_model()
-        self._load_datasets()
+        self.load_model()
 
-    def predict(self):
-        _, _, scores = predict_dim(
-            self.model,
-            self.ds_val,
-            self.args["tr_bs_val"],
-            self.dev,
-            num_workers=self.args["tr_num_workers"],
-        )
-
-        return scores
-
-    def _load_datasets(self):
-        data_dir = os.path.dirname(self.args["filename"])
-        file_name = os.path.basename(self.args["filename"])
-        df_val = pd.DataFrame([file_name], columns=["filename"])
-
-        # creating Datasets
-        self.ds_val = SpeechQualityDataset(
-            df_val,
-            df_con=None,
-            data_dir=data_dir,
-            filename_column="filename",
-            mos_column="predict_only",
+        self.speech_helper = SpeechHelper(
             seg_length=self.args["ms_seg_length"],
             max_length=self.args["ms_max_segments"],
             seg_hop_length=self.args["ms_seg_hop_length"],
-            transform=None,
             ms_n_fft=self.args["ms_n_fft"],
             ms_hop_length=self.args["ms_hop_length"],
             ms_win_length=self.args["ms_win_length"],
@@ -56,19 +26,25 @@ class NisqaModel:
             ms_sr=self.args["ms_sr"],
             ms_fmax=self.args["ms_fmax"],
             ms_channel=self.args["ms_channel"],
-            double_ended=self.args["double_ended"],
-            dim=self.args["dim"],
-            filename_column_ref=None,
         )
 
-    def _load_model(self):
-        self.dev = torch.device("cpu")
+    def predict(self, filename):
+        scores = predict_dim(
+            self.model,
+            self.device,
+            self.speech_helper,
+            filename,
+        )
+
+        return scores
+
+    def load_model(self):
+        self.device = torch.device("cpu")
 
         if "run_device" in self.args:
             if self.args["run_device"] != "cpu":
-                self.dev = torch.device(self.args["run_device"])
+                self.device = torch.device(self.args["run_device"])
 
-        # if True overwrite input arguments from pretrained model
         if self.args["pretrained_model"]:
             if os.path.isabs(self.args["pretrained_model"]):
                 model_path = os.path.join(self.args["pretrained_model"])
@@ -76,20 +52,18 @@ class NisqaModel:
                 model_path = os.path.join(os.getcwd(), self.args["pretrained_model"])
 
             checkpoint = torch.load(
-                model_path, map_location=self.dev, weights_only=True
+                model_path, map_location=self.device, weights_only=True
             )
 
-            # update checkpoint arguments with new arguments
             checkpoint["args"].update(self.args)
             self.args = checkpoint["args"]
 
         self.args["dim"] = True
-        self.args["csv_mos_train"] = None  # column names hardcoded for dim models
+        self.args["csv_mos_train"] = None
         self.args["csv_mos_val"] = None
         self.args["double_ended"] = False
         self.args["csv_ref"] = None
 
-        # Load Model
         self.model_args = {
             "ms_seg_length": self.args["ms_seg_length"],
             "ms_n_mels": self.args["ms_n_mels"],
@@ -140,9 +114,8 @@ class NisqaModel:
                 }
             )
 
-        self.model = NISQA_DIM(**self.model_args)
+        self.model = NisqaDim(**self.model_args)
 
-        # Load weights if pretrained model is used
         if self.args["pretrained_model"]:
             missing_keys, unexpected_keys = self.model.load_state_dict(
                 checkpoint["model_state_dict"], strict=True
@@ -155,5 +128,5 @@ class NisqaModel:
                 print("unexpected_keys:")
                 print(unexpected_keys)
 
-        self.model.to(self.dev)
+        self.model.to(self.device)
         self.model.eval()

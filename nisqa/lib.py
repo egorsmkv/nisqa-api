@@ -2,7 +2,6 @@
 @author: Gabriel Mittag, TU-Berlin
 """
 
-import os
 import copy
 import math
 
@@ -13,12 +12,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
-from torch.utils.data import Dataset, DataLoader
 
 
-class NISQA_DIM(nn.Module):
+class NisqaDim(nn.Module):
     """
-    NISQA_DIM: The main speech quality model with speech quality dimension
+    NisqaDim: The main speech quality model with speech quality dimension
     estimation (MOS, Noisiness, Coloration, Discontinuity, and Loudness).
     The module loads the submodules for framewise modelling (e.g. CNN),
     time-dependency modelling (e.g. Self-Attention or LSTM), and pooling
@@ -965,61 +963,33 @@ class PoolMax(torch.nn.Module):
         return x
 
 
-def predict_dim(model, ds, bs, dev, num_workers=0):
-    dl = DataLoader(
-        ds,
-        batch_size=bs,
-        shuffle=False,
-        drop_last=False,
-        pin_memory=False,
-        num_workers=num_workers,
-    )
+def predict_dim(model, device, speech_helper, filename):
+    xb, n_wins = speech_helper.params(filename)
+
+    n_wins = torch.tensor(n_wins, dtype=torch.int64).unsqueeze(0).to(device)
 
     with torch.inference_mode():
-        y_hat_list = [
-            [model(xb.to(dev), n_wins.to(dev)).cpu().numpy(), yb.cpu().numpy()]
-            for xb, yb, (_, n_wins) in dl
-        ]
-    yy = np.concatenate(y_hat_list, axis=1)
+        result = model(xb.to(device), n_wins)
+        result = result.cpu().detach().numpy()
 
-    y_hat = yy[0, :, :]
-    y = yy[1, :, :]
-
-    scores = {}
-
-    scores["mos_pred"] = y_hat[:, 0].reshape(-1, 1)[0, 0]
-    scores["noi_pred"] = y_hat[:, 1].reshape(-1, 1)[0, 0]
-    scores["dis_pred"] = y_hat[:, 2].reshape(-1, 1)[0, 0]
-    scores["col_pred"] = y_hat[:, 3].reshape(-1, 1)[0, 0]
-    scores["loud_pred"] = y_hat[:, 4].reshape(-1, 1)[0, 0]
+        scores = result[0]
 
     float_scores = {
-        "mos": float(scores["mos_pred"]),
-        "noi": float(scores["noi_pred"]),
-        "dis": float(scores["dis_pred"]),
-        "col": float(scores["col_pred"]),
-        "loud": float(scores["loud_pred"]),
+        "mos": float(scores[0]),
+        "noi": float(scores[1]),
+        "dis": float(scores[2]),
+        "col": float(scores[3]),
+        "loud": float(scores[4]),
     }
 
-    return y_hat, y, float_scores
+    return float_scores
 
 
-class SpeechQualityDataset(Dataset):
-    """
-    Dataset for Speech Quality Model.
-    """
-
+class SpeechHelper:
     def __init__(
         self,
-        df,
-        df_con=None,
-        data_dir="",
-        folder_column="",
-        filename_column="filename",
-        mos_column="MOS",
         seg_length=15,
         max_length=None,
-        transform=None,
         seg_hop_length=1,
         ms_n_fft=1024,
         ms_hop_length=80,
@@ -1028,21 +998,10 @@ class SpeechQualityDataset(Dataset):
         ms_sr=48e3,
         ms_fmax=16e3,
         ms_channel=None,
-        double_ended=False,
-        filename_column_ref=None,
-        dim=False,
     ):
-        self.df = df
-        self.df_con = df_con
-        self.data_dir = data_dir
-        self.folder_column = folder_column
-        self.filename_column = filename_column
-        self.filename_column_ref = filename_column_ref
-        self.mos_column = mos_column
         self.seg_length = seg_length
         self.seg_hop_length = seg_hop_length
         self.max_length = max_length
-        self.transform = transform
         self.ms_n_fft = ms_n_fft
         self.ms_hop_length = ms_hop_length
         self.ms_win_length = ms_win_length
@@ -1050,20 +1009,8 @@ class SpeechQualityDataset(Dataset):
         self.ms_sr = ms_sr
         self.ms_fmax = ms_fmax
         self.ms_channel = ms_channel
-        self.double_ended = double_ended
-        self.dim = dim
 
-    def _load_spec(self, index):
-        # Load spec
-        file_path = os.path.join(
-            self.data_dir, self.df[self.filename_column].iloc[index]
-        )
-
-        if self.double_ended:
-            file_path_ref = os.path.join(
-                self.data_dir, self.df[self.filename_column_ref].iloc[index]
-            )
-
+    def params(self, file_path):
         spec = get_librosa_melspec(
             file_path,
             sr=self.ms_sr,
@@ -1075,96 +1022,13 @@ class SpeechQualityDataset(Dataset):
             ms_channel=self.ms_channel,
         )
 
-        if self.double_ended:
-            spec_ref = get_librosa_melspec(
-                file_path_ref,
-                sr=self.ms_sr,
-                n_fft=self.ms_n_fft,
-                hop_length=self.ms_hop_length,
-                win_length=self.ms_win_length,
-                n_mels=self.ms_n_mels,
-                fmax=self.ms_fmax,
-            )
-            spec = (spec, spec_ref)
-
-        return spec
-
-    def __getitem__(self, index):
-        assert isinstance(index, int), "index must be integer (no slice)"
-
-        spec = self._load_spec(index)
-
-        if self.double_ended:
-            spec, spec_ref = spec
-
-        # Apply transformation if given
-        if self.transform:
-            spec = self.transform(spec)
-
-        # Segment specs
-        file_path = os.path.join(
-            self.data_dir, self.df[self.filename_column].iloc[index]
+        x_spec_seg, n_wins = segment_specs(
+            file_path, spec, self.seg_length, self.seg_hop_length, self.max_length
         )
-        if self.seg_length is not None:
-            x_spec_seg, n_wins = segment_specs(
-                file_path, spec, self.seg_length, self.seg_hop_length, self.max_length
-            )
 
-            if self.double_ended:
-                x_spec_seg_ref, n_wins_ref = segment_specs(
-                    file_path,
-                    spec_ref,
-                    self.seg_length,
-                    self.seg_hop_length,
-                    self.max_length,
-                )
-        else:
-            x_spec_seg = spec
-            n_wins = spec.shape[1]
-            if self.max_length is not None:
-                x_padded = np.zeros((x_spec_seg.shape[0], self.max_length))
-                x_padded[:, :n_wins] = x_spec_seg
-                x_spec_seg = np.expand_dims(x_padded.transpose(1, 0), axis=(1, 3))
-                if not torch.is_tensor(x_spec_seg):
-                    x_spec_seg = torch.tensor(x_spec_seg, dtype=torch.float)
+        x_spec_seg = x_spec_seg.unsqueeze(0)
 
-            if self.double_ended:
-                x_spec_seg_ref = spec
-                n_wins_ref = spec.shape[1]
-                if self.max_length is not None:
-                    x_padded = np.zeros((x_spec_seg_ref.shape[0], self.max_length))
-                    x_padded[:, :n_wins] = x_spec_seg_ref
-                    x_spec_seg_ref = np.expand_dims(
-                        x_padded.transpose(1, 0), axis=(1, 3)
-                    )
-                    if not torch.is_tensor(x_spec_seg_ref):
-                        x_spec_seg_ref = torch.tensor(x_spec_seg_ref, dtype=torch.float)
-
-        if self.double_ended:
-            x_spec_seg = torch.cat((x_spec_seg, x_spec_seg_ref), dim=1)
-            n_wins = np.concatenate((n_wins.reshape(1), n_wins_ref.reshape(1)), axis=0)
-
-        # Get MOS (apply NaN in case of prediction only mode)
-        if self.dim:
-            if self.mos_column == "predict_only":
-                y = np.full((5, 1), np.nan).reshape(-1).astype("float32")
-            else:
-                y_mos = self.df["mos"].iloc[index].reshape(-1).astype("float32")
-                y_noi = self.df["noi"].iloc[index].reshape(-1).astype("float32")
-                y_dis = self.df["dis"].iloc[index].reshape(-1).astype("float32")
-                y_col = self.df["col"].iloc[index].reshape(-1).astype("float32")
-                y_loud = self.df["loud"].iloc[index].reshape(-1).astype("float32")
-                y = np.concatenate((y_mos, y_noi, y_dis, y_col, y_loud), axis=0)
-        else:
-            if self.mos_column == "predict_only":
-                y = np.full(1, np.nan).reshape(-1).astype("float32")
-            else:
-                y = self.df[self.mos_column].iloc[index].reshape(-1).astype("float32")
-
-        return x_spec_seg, y, (index, n_wins)
-
-    def __len__(self):
-        return len(self.df)
+        return x_spec_seg, n_wins
 
 
 def segment_specs(file_path, x, seg_length, seg_hop=1, max_length=None):
@@ -1258,4 +1122,5 @@ def get_librosa_melspec(
     )
 
     spec = lb.core.amplitude_to_db(S, ref=1.0, amin=1e-4, top_db=80.0)
+
     return spec

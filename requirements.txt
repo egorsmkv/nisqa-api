@@ -2,7 +2,6 @@ torch
 
 librosa
 numpy<2
-pandas
 
 fastapi
 uvicorn
