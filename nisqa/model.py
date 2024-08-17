@@ -9,8 +9,6 @@ import nisqa.lib as NL
 import torch
 import pandas as pd
 
-pd.options.mode.chained_assignment = None
-
 
 class NisqaModel:
     """
@@ -49,8 +47,6 @@ class NisqaModel:
             mos_column="predict_only",
             seg_length=self.args["ms_seg_length"],
             max_length=self.args["ms_max_segments"],
-            to_memory=None,
-            to_memory_workers=None,
             seg_hop_length=self.args["ms_seg_hop_length"],
             transform=None,
             ms_n_fft=self.args["ms_n_fft"],
@@ -87,18 +83,11 @@ class NisqaModel:
             checkpoint["args"].update(self.args)
             self.args = checkpoint["args"]
 
-        if self.args["model"] == "NISQA_DIM":
-            self.args["dim"] = True
-            self.args["csv_mos_train"] = None  # column names hardcoded for dim models
-            self.args["csv_mos_val"] = None
-        else:
-            self.args["dim"] = False
-
-        if self.args["model"] == "NISQA_DE":
-            self.args["double_ended"] = True
-        else:
-            self.args["double_ended"] = False
-            self.args["csv_ref"] = None
+        self.args["dim"] = True
+        self.args["csv_mos_train"] = None  # column names hardcoded for dim models
+        self.args["csv_mos_val"] = None
+        self.args["double_ended"] = False
+        self.args["csv_ref"] = None
 
         # Load Model
         self.model_args = {
@@ -151,14 +140,7 @@ class NisqaModel:
                 }
             )
 
-        if self.args["model"] == "NISQA":
-            self.model = NL.NISQA(**self.model_args)
-        elif self.args["model"] == "NISQA_DIM":
-            self.model = NL.NISQA_DIM(**self.model_args)
-        elif self.args["model"] == "NISQA_DE":
-            self.model = NL.NISQA_DE(**self.model_args)
-        else:
-            raise NotImplementedError("Model not available")
+        self.model = NL.NISQA_DIM(**self.model_args)
 
         # Load weights if pretrained model is used
         if self.args["pretrained_model"]:

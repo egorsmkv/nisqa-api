@@ -1,7 +1,5 @@
 torch
 
-scipy
-
 librosa
 numpy<2
 pandas
