@@ -974,15 +974,13 @@ def predict_dim(model, device, speech_helper, filename):
 
         scores = result[0]
 
-    float_scores = {
+    return {
         "mos": float(scores[0]),
         "noi": float(scores[1]),
         "dis": float(scores[2]),
         "col": float(scores[3]),
         "loud": float(scores[4]),
     }
-
-    return float_scores
 
 
 class SpeechHelper:

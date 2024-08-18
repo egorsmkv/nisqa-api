@@ -2,8 +2,6 @@
 @author: Gabriel Mittag, TU-Berlin
 """
 
-import os
-
 import torch
 
 from nisqa.lib import predict_dim, SpeechHelper, NisqaDim
@@ -28,35 +26,17 @@ class NisqaModel:
             ms_channel=self.args["ms_channel"],
         )
 
-    def predict(self, filename):
-        scores = predict_dim(
-            self.model,
-            self.device,
-            self.speech_helper,
-            filename,
-        )
-
-        return scores
-
     def load_model(self):
         self.device = torch.device("cpu")
+        if self.args["device"] != "cpu":
+            self.device = torch.device(self.args["device"])
 
-        if "run_device" in self.args:
-            if self.args["run_device"] != "cpu":
-                self.device = torch.device(self.args["run_device"])
+        checkpoint = torch.load(
+            self.args["pretrained_model"], map_location=self.device, weights_only=True
+        )
 
-        if self.args["pretrained_model"]:
-            if os.path.isabs(self.args["pretrained_model"]):
-                model_path = os.path.join(self.args["pretrained_model"])
-            else:
-                model_path = os.path.join(os.getcwd(), self.args["pretrained_model"])
-
-            checkpoint = torch.load(
-                model_path, map_location=self.device, weights_only=True
-            )
-
-            checkpoint["args"].update(self.args)
-            self.args = checkpoint["args"]
+        checkpoint["args"].update(self.args)
+        self.args = checkpoint["args"]
 
         self.args["dim"] = True
         self.args["csv_mos_train"] = None
@@ -104,29 +84,17 @@ class NisqaModel:
             "pool_att_dropout": self.args["pool_att_dropout"],
         }
 
-        if self.args["double_ended"]:
-            self.model_args.update(
-                {
-                    "de_align": self.args["de_align"],
-                    "de_align_apply": self.args["de_align_apply"],
-                    "de_fuse_dim": self.args["de_fuse_dim"],
-                    "de_fuse": self.args["de_fuse"],
-                }
-            )
-
         self.model = NisqaDim(**self.model_args)
 
-        if self.args["pretrained_model"]:
-            missing_keys, unexpected_keys = self.model.load_state_dict(
-                checkpoint["model_state_dict"], strict=True
-            )
-
-            if missing_keys:
-                print("missing_keys:")
-                print(missing_keys)
-            if unexpected_keys:
-                print("unexpected_keys:")
-                print(unexpected_keys)
+        self.model.load_state_dict(checkpoint["model_state_dict"], strict=True)
 
         self.model.to(self.device)
         self.model.eval()
+
+    def predict(self, filename):
+        return predict_dim(
+            self.model,
+            self.device,
+            self.speech_helper,
+            filename,
+        )
