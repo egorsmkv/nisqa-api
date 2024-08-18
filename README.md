@@ -14,3 +14,7 @@ uv pip install -r requirements.txt
 # in development mode
 uv pip install -r requirements-dev.txt
 ```
+
+## Usage
+
+The `test_lib.py` has an example of project usage.
