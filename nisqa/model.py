@@ -91,7 +91,10 @@ class NisqaModel:
         self.model.to(self.device)
         self.model.eval()
 
-    def predict(self, filename):
+    def predict(self, filename, sr=16_000):
+        if self.args["ms_sr"] != sr:
+            self.speech_helper.ms_sr = sr
+
         return predict_dim(
             self.model,
             self.device,

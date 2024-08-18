@@ -10,6 +10,15 @@ app = FastAPI()
 pretrained_model = Path.cwd() / "weights" / "nisqa.tar"
 device = "cuda:1"
 
+args = {
+    "pretrained_model": pretrained_model,
+    "ms_channel": None,
+    "ms_sr": 16_000,
+    "device": device,
+}
+
+nisqa = NisqaModel(args)
+
 
 @app.post("/predict")
 async def predict(
@@ -20,16 +29,7 @@ async def predict(
         temp_file.write(await audio_file.read())
         temp_path = temp_file.name
 
-        args = {
-            "pretrained_model": pretrained_model,
-            "ms_channel": None,
-            "ms_sr": sr,
-            "device": device,
-        }
-
-        nisqa = NisqaModel(args)
-
-        return nisqa.predict(temp_path)
+        return nisqa.predict(temp_path, sr=sr)
 
 
 if __name__ == "__main__":
